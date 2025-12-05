@@ -1,0 +1,24 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/gypsophila/ROS2/ur5e/build/vision",
+        "/home/gypsophila/ROS2/ur5e/install/vision/lib/python3.10/site-packages",
+        "/home/gypsophila/ROS2/ur5e/build/ur_bringup",
+        "/home/gypsophila/ROS2/ur5e/install/ur_bringup/lib/python3.10/site-packages",
+        "/home/gypsophila/ROS2/ur5e/install/realsense2_camera_msgs/local/lib/python3.10/dist-packages",
+        "/home/gypsophila/ROS2/ur5e/build/octo_bringup",
+        "/home/gypsophila/ROS2/ur5e/install/octo_bringup/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/gypsophila/ROS2/ur5e/build/vision",
+        "/home/gypsophila/ROS2/ur5e/install/vision/lib/python3.10/site-packages",
+        "/home/gypsophila/ROS2/ur5e/build/ur_bringup",
+        "/home/gypsophila/ROS2/ur5e/install/ur_bringup/lib/python3.10/site-packages",
+        "/home/gypsophila/ROS2/ur5e/install/realsense2_camera_msgs/local/lib/python3.10/dist-packages",
+        "/home/gypsophila/ROS2/ur5e/build/octo_bringup",
+        "/home/gypsophila/ROS2/ur5e/install/octo_bringup/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
+}
