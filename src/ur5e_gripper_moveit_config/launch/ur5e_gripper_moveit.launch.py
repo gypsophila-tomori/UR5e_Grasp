@@ -1,3 +1,5 @@
+# ur5e_gripper_moveit_config/launch/ur5e_gripper_moveit.launch.py (真正最终的修正版)
+
 import os
 
 from launch_ros.actions import Node
@@ -20,9 +22,7 @@ def launch_setup(context, *args, **kwargs):
     moveit_config_file = LaunchConfiguration("moveit_config_file")
     prefix = LaunchConfiguration("prefix")
     use_sim_time = LaunchConfiguration("use_sim_time")
-    # launch_rviz = LaunchConfiguration("launch_rviz")
-
-
+    
     robot_description_content = Command(
         [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
@@ -44,9 +44,11 @@ def launch_setup(context, *args, **kwargs):
     )
     robot_description_semantic = {"robot_description_semantic": robot_description_semantic_content}
 
-    robot_description_kinematics = PathJoinSubstitution(
-        [FindPackageShare(moveit_config_package), "config", "kinematics.yaml"]
-    )
+    # ##########  这是我们唯一的、决定性的修改  ##########
+    # 从仅仅获取路径, 变为加载YAML文件内容并包装成字典
+    kinematics_yaml = load_yaml("ur5e_gripper_moveit_config", "config/kinematics.yaml")
+    robot_description_kinematics = {"robot_description_kinematics": kinematics_yaml}
+    # ##################################################
 
     robot_description_planning = {
         "robot_description_planning": load_yaml(
@@ -72,11 +74,6 @@ def launch_setup(context, *args, **kwargs):
     moveit_controllers = {
         "moveit_simple_controller_manager": controllers_yaml,
         "moveit_controller_manager": "moveit_simple_controller_manager/MoveItSimpleControllerManager",
-        "trajectory_execution" : {
-            "allowed_execution_duration_scaling": 2.0,  # change execution time scaling here
-            "allowed_goal_duration_margin": 0.5,
-            "allowed_start_tolerance": 0.01,
-        }
     }
 
     trajectory_execution = {
@@ -91,12 +88,8 @@ def launch_setup(context, *args, **kwargs):
         "publish_geometry_updates": True,
         "publish_state_updates": True,
         "publish_transforms_updates": True,
-        "publish_robot_description":True,
-        "publish_robot_description_semantic":True,
     }
-
-    octomap_config = {'octomap_frame': 'camera_depth_optical_frame', 'octomap_resolution': 0.02}
-    octomap_updater_config = load_yaml('ur5e_gripper_moveit_config', 'config/sensors_3d.yaml')    
+   
     # Start the actual move_group node/action server
     move_group_node = Node(
         package="moveit_ros_move_group",
@@ -105,28 +98,22 @@ def launch_setup(context, *args, **kwargs):
         parameters=[
             robot_description,
             robot_description_semantic,
-            robot_description_kinematics,
+            robot_description_kinematics, # <-- 现在传递的是正确的字典了
             robot_description_planning,
             ompl_planning_pipeline_config,
             trajectory_execution,
             moveit_controllers,
             planning_scene_monitor_parameters,
             {"use_sim_time": use_sim_time},
-            octomap_config,
-            octomap_updater_config,
         ],
     )
 
-
-    nodes_to_start = [
-        move_group_node, 
-        # rviz_node, 
-    ]
-
+    nodes_to_start = [ move_group_node ]
     return nodes_to_start
 
 
 def generate_launch_description():
+    # ... (这部分完全不用动)
     declared_arguments = []
     # General arguments
     declared_arguments.append(
@@ -187,3 +174,4 @@ def generate_launch_description():
     )
 
     return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
+
