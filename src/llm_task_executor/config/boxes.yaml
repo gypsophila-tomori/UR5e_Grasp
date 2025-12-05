@@ -1,0 +1,20 @@
+/**:
+  ros__parameters:
+    # 定义可放置物体的区域 (箱子)
+    # 每个箱子有一个名称和对应的位姿 [x, y, z, roll, pitch, yaw]
+    # 我们从 target_pose_list.yaml 中选取几个位置并给它们命名
+    place_locations:
+      red_bin: [0.5, -0.45, 0.2, 0.0, 3.14, 0.0]
+      green_bin: [0.5, 0.45, 0.28, 0.0, 3.14, 0.0]
+      blue_bin: [0.5, -0.38, 0.28, 0.0, 3.14, 0.0]
+
+    # (可选) 定义抓取时的姿态修正值，将“魔法数字”配置化
+    grasp_pose_correction:
+      # 在物体TF坐标基础上进行的微调
+      # [dx, dy, dz, d_roll, d_pitch, d_yaw] -> 我们目前只需要设置绝对姿态
+      # 这里我们定义绝对姿态 [roll, pitch, yaw]
+      orientation_override: [0.0, 3.14, 0.0]
+      # Z轴方向的抬升高度
+      z_offset: 0.14
+      x_offset: -0.012
+      y_offset: 0.01
