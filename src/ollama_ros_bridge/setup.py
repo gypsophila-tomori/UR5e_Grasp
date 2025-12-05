@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'llm_control_node = ollama_ros_bridge.llm_control_node:main',
         ],
     },
 )
