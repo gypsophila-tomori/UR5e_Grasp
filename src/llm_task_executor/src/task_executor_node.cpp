@@ -47,7 +47,7 @@ public:
     }
 
 private:
-    // 核心的回调函数 (最终确认的正确版本)
+    // 核心的回调函数 (终极兼容版)
     void llm_plan_callback(const std_msgs::msg::String::SharedPtr msg) {
         RCLCPP_INFO(this->get_logger(), "Received a new plan: %s", msg->data.c_str());
 
@@ -60,52 +60,69 @@ private:
             }
 
             for (const auto& step : plan["actions"]) {
-                // 这是匹配 {"pick": "cube1"} 格式的正确逻辑
-                if (step.contains("pick")) {
-                    std::string object_name = step["pick"];
-                    RCLCPP_INFO(this->get_logger(), "Executing PICK on object: %s", object_name.c_str());
+                std::string object_name;
+                std::string place_name;
+                bool action_found = false;
 
-                    std::vector<double> object_pose;
-                    if (!ur5e_gripper_->get_cube_pose("base_link", object_name, object_pose)) {
-                        RCLCPP_ERROR(this->get_logger(), "Could not find TF for '%s'. Aborting plan.", object_name.c_str());
-                        return; // 发现不了物体，终止整个计划
+                // 优先尝试解析新格式: {"action": "pick", "object_name": "cube1"}
+                if (step.contains("action")) {
+                    std::string action_type = step["action"];
+                    if (action_type == "pick" && step.contains("object_name")) {
+                        object_name = step["object_name"];
+                        action_found = true;
+                    } else if (action_type == "place" && step.contains("position_name")) {
+                        place_name = step["position_name"];
+                        action_found = true;
                     }
-
-                    // 应用配置文件中的姿态修正
-                    object_pose[0] += grasp_x_offset_;
-                    object_pose[1] += grasp_y_offset_;
-                    object_pose[2] += grasp_z_offset_;
-                    object_pose[3] = grasp_orientation_override_[0]; // Roll
-                    object_pose[4] = grasp_orientation_override_[1]; // Pitch
-                    object_pose[5] = grasp_orientation_override_[2]; // Yaw
-
-                    RCLCPP_INFO(this->get_logger(), "Planning to grasp pose: [%.2f, %.2f, %.2f]", object_pose[0], object_pose[1], object_pose[2]);
-                    if (ur5e_gripper_->plan_and_execute(object_pose)) {
-                        ur5e_gripper_->grasp(0.36); // 假设0.36是闭合
-                        rclcpp::sleep_for(std::chrono::seconds(2));
-                    } else {
-                        RCLCPP_ERROR(this->get_logger(), "Pick failed for %s. Aborting plan.", object_name.c_str());
-                        return; // 规划或执行失败，终止整个计划
-                    }
-
+                } 
+                // 如果新格式解析失败，回退到旧格式: {"pick": "cube1"}
+                else if (step.contains("pick")) {
+                    object_name = step["pick"];
+                    action_found = true;
                 } else if (step.contains("place")) {
-                    std::string place_name = step["place"];
-                    RCLCPP_INFO(this->get_logger(), "Executing PLACE at location: %s", place_name.c_str());
+                    place_name = step["place"];
+                    action_found = true;
+                }
 
-                    if (place_locations_.count(place_name)) {
-                        std::vector<double> place_pose = place_locations_[place_name];
-                        RCLCPP_INFO(this->get_logger(), "Planning to place pose: [%.2f, %.2f, %.2f]", place_pose[0], place_pose[1], place_pose[2]);
-                        if (ur5e_gripper_->plan_and_execute(place_pose)) {
-                            ur5e_gripper_->grasp(0.0); // 假设0.0是张开
+                // 如果找到了一个有效的动作，则执行
+                if (action_found) {
+                    if (!object_name.empty()) { // 执行 Pick
+                        RCLCPP_INFO(this->get_logger(), "Executing PICK on object: %s", object_name.c_str());
+                        std::vector<double> object_pose;
+                        if (!ur5e_gripper_->get_cube_pose("base_link", object_name, object_pose)) {
+                            RCLCPP_ERROR(this->get_logger(), "Could not find TF for '%s'. Aborting.", object_name.c_str());
+                            return;
+                        }
+                        object_pose[0] += grasp_x_offset_; object_pose[1] += grasp_y_offset_; object_pose[2] += grasp_z_offset_;
+                        object_pose[3] = grasp_orientation_override_[0]; object_pose[4] = grasp_orientation_override_[1]; object_pose[5] = grasp_orientation_override_[2];
+                        
+                        RCLCPP_INFO(this->get_logger(), "Planning to grasp pose: [%.2f, %.2f, %.2f]", object_pose[0], object_pose[1], object_pose[2]);
+                        if (ur5e_gripper_->plan_and_execute(object_pose)) {
+                            ur5e_gripper_->grasp(0.36);
                             rclcpp::sleep_for(std::chrono::seconds(2));
                         } else {
-                            RCLCPP_ERROR(this->get_logger(), "Place failed at %s. Aborting plan.", place_name.c_str());
-                            return; // 规划或执行失败，终止整个计划
+                            RCLCPP_ERROR(this->get_logger(), "Pick failed for %s. Aborting.", object_name.c_str());
+                            return;
                         }
-                    } else {
-                        RCLCPP_ERROR(this->get_logger(), "Unknown place location: '%s'. Aborting plan.", place_name.c_str());
-                        return;
+                    } else if (!place_name.empty()) { // 执行 Place
+                        RCLCPP_INFO(this->get_logger(), "Executing PLACE at location: %s", place_name.c_str());
+                        if (place_locations_.count(place_name)) {
+                            std::vector<double> place_pose = place_locations_[place_name];
+                            RCLCPP_INFO(this->get_logger(), "Planning to place pose: [%.2f, %.2f, %.2f]", place_pose[0], place_pose[1], place_pose[2]);
+                            if (ur5e_gripper_->plan_and_execute(place_pose)) {
+                                ur5e_gripper_->grasp(0.0);
+                                rclcpp::sleep_for(std::chrono::seconds(2));
+                            } else {
+                                RCLCPP_ERROR(this->get_logger(), "Place failed at %s. Aborting.", place_name.c_str());
+                                return;
+                            }
+                        } else {
+                            RCLCPP_ERROR(this->get_logger(), "Unknown place location: '%s'. Aborting.", place_name.c_str());
+                            return;
+                        }
                     }
+                } else {
+                    RCLCPP_WARN(this->get_logger(), "Skipping a step in the plan due to unrecognized format.");
                 }
             }
 
