@@ -137,24 +137,42 @@ bool UR5eGripper::grasp(double gripper_position) {
   return true;
 }
 
-void UR5eGripper::get_cube_pose(const std::string &from_frame, const std::string &to_frame,
-                                std::vector<double> &cube_pose) {
-  cube_pose.clear();
-  geometry_msgs::msg::TransformStamped tf_msg;
+// 注意返回类型从 void 变成了 bool
+bool UR5eGripper::get_cube_pose(const std::string& source_frame, const std::string& target_frame, std::vector<double>& pose)
+{
+  geometry_msgs::msg::TransformStamped t;
+
+  // Look up for the transformation between source_frame and target_frame
+  // and store the transform in the TransformStamped msg
   try {
-    tf_msg = tf_buffer_->lookupTransform(from_frame, to_frame, tf2::TimePointZero);
-  } catch (tf2::TransformException &ex) {
-    RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
-    rclcpp::shutdown();
-    return;
+    t = tf_buffer_->lookupTransform(source_frame, target_frame, tf2::TimePointZero);
+  } catch (const tf2::TransformException & ex) {
+    RCLCPP_INFO(
+      this->get_logger(), "Could not transform %s to %s: %s",
+      source_frame.c_str(), target_frame.c_str(), ex.what());
+    return false; // 获取TF失败，返回 false
   }
-  cube_pose.push_back(tf_msg.transform.translation.x);
-  cube_pose.push_back(tf_msg.transform.translation.y);
-  cube_pose.push_back(tf_msg.transform.translation.z);
-  cube_pose.push_back(0);
-  cube_pose.push_back(0);
-  cube_pose.push_back(0);
+
+  tf2::Quaternion q(
+    t.transform.rotation.x,
+    t.transform.rotation.y,
+    t.transform.rotation.z,
+    t.transform.rotation.w
+  );
+  tf2::Matrix3x3 m(q);
+  double roll, pitch, yaw;
+  m.getRPY(roll, pitch, yaw);
+  
+  pose.push_back(t.transform.translation.x);
+  pose.push_back(t.transform.translation.y);
+  pose.push_back(t.transform.translation.z);
+  pose.push_back(roll);
+  pose.push_back(pitch);
+  pose.push_back(yaw);
+
+  return true; // 成功获取并填充pose，返回 true
 }
+
 
 void UR5eGripper::go_to_ready_position() {
   move_group_->setNamedTarget("ready");

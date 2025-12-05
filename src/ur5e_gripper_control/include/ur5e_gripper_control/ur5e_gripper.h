@@ -28,7 +28,7 @@ public:
       std::vector<double> &joint_target_positions);
   bool plan_and_execute(const std::vector<double> &target_pose);
   bool grasp(double gripper_position);
-  void get_cube_pose(const std::string &from_frame, const std::string &to_frame,
+  bool get_cube_pose(const std::string &from_frame, const std::string &to_frame,
                     std::vector<double> &cube_pose);
   void go_to_ready_position();
 
