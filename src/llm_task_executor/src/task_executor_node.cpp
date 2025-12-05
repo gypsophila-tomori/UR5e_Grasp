@@ -47,24 +47,28 @@ public:
     }
 
 private:
-    // 核心的回调函数
+    // 核心的回调函数 (最终确认的正确版本)
     void llm_plan_callback(const std_msgs::msg::String::SharedPtr msg) {
         RCLCPP_INFO(this->get_logger(), "Received a new plan: %s", msg->data.c_str());
 
         try {
             auto plan = json::parse(msg->data);
 
+            if (!plan.contains("actions")) {
+                RCLCPP_ERROR(this->get_logger(), "JSON plan does not contain 'actions' array. Aborting.");
+                return;
+            }
+
             for (const auto& step : plan["actions"]) {
+                // 这是匹配 {"pick": "cube1"} 格式的正确逻辑
                 if (step.contains("pick")) {
                     std::string object_name = step["pick"];
                     RCLCPP_INFO(this->get_logger(), "Executing PICK on object: %s", object_name.c_str());
 
                     std::vector<double> object_pose;
-                    ur5e_gripper_->get_cube_pose("base_link", object_name, object_pose);
-
-                    if (object_pose.empty()) {
-                        RCLCPP_ERROR(this->get_logger(), "Could not find TF for '%s'. Aborting this step.", object_name.c_str());
-                        continue;
+                    if (!ur5e_gripper_->get_cube_pose("base_link", object_name, object_pose)) {
+                        RCLCPP_ERROR(this->get_logger(), "Could not find TF for '%s'. Aborting plan.", object_name.c_str());
+                        return; // 发现不了物体，终止整个计划
                     }
 
                     // 应用配置文件中的姿态修正
@@ -80,8 +84,8 @@ private:
                         ur5e_gripper_->grasp(0.36); // 假设0.36是闭合
                         rclcpp::sleep_for(std::chrono::seconds(2));
                     } else {
-                        RCLCPP_ERROR(this->get_logger(), "Pick failed for %s.", object_name.c_str());
-                        return; // 终止整个计划
+                        RCLCPP_ERROR(this->get_logger(), "Pick failed for %s. Aborting plan.", object_name.c_str());
+                        return; // 规划或执行失败，终止整个计划
                     }
 
                 } else if (step.contains("place")) {
@@ -95,11 +99,11 @@ private:
                             ur5e_gripper_->grasp(0.0); // 假设0.0是张开
                             rclcpp::sleep_for(std::chrono::seconds(2));
                         } else {
-                            RCLCPP_ERROR(this->get_logger(), "Place failed at %s.", place_name.c_str());
-                            return; // 终止整个计划
+                            RCLCPP_ERROR(this->get_logger(), "Place failed at %s. Aborting plan.", place_name.c_str());
+                            return; // 规划或执行失败，终止整个计划
                         }
                     } else {
-                        RCLCPP_ERROR(this->get_logger(), "Unknown place location: '%s'. Aborting.", place_name.c_str());
+                        RCLCPP_ERROR(this->get_logger(), "Unknown place location: '%s'. Aborting plan.", place_name.c_str());
                         return;
                     }
                 }
@@ -112,6 +116,7 @@ private:
             RCLCPP_ERROR(this->get_logger(), "Failed to parse JSON plan: %s", e.what());
         }
     }
+
 
     // 成员变量
     std::shared_ptr<UR5eGripper> ur5e_gripper_;
